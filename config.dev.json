@@ -26,7 +26,7 @@
     "notes": "if you enable this feature, only the ids in the whiteListIds section can use the bot"
   },
   "nickNameBot": "Officiʌl ɱʌfiʌ Giʀl🦥💨",
-  "prefix": "/",
+  "prefix": ")",
   "database": {
     "type": "mongodb",
     "uriMongodb": "mongodb+srv://Hinata:W2fNh.H9iWFU22F@cluster0.cyattib.mongodb.net/AZADBOTV2?retryWrites=true&w=majority&appName=Cluster0",
