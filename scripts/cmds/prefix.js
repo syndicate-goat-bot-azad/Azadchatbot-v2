@@ -1,103 +1,188 @@
-const fs = require("fs-extra");
-const { utils } = global;
-
 module.exports = {
-	config: {
-		name: "prefix",
-		version: "1.4",
-		author: "NTKhang",
-		countDown: 5,
-		role: 0,
-		description: "Thay đổi dấu lệnh của bot trong box chat của bạn hoặc cả hệ thống bot (chỉ admin bot)",
-		category: "config",
-		guide: {
-			vi: "   {pn} <new prefix>: thay đổi prefix mới trong box chat của bạn"
-				+ "\n   Ví dụ:"
-				+ "\n    {pn} #"
-				+ "\n\n   {pn} <new prefix> -g: thay đổi prefix mới trong hệ thống bot (chỉ admin bot)"
-				+ "\n   Ví dụ:"
-				+ "\n    {pn} # -g"
-				+ "\n\n   {pn} reset: thay đổi prefix trong box chat của bạn về mặc định",
-			en: "   {pn} <new prefix>: change new prefix in your box chat"
-				+ "\n   Example:"
-				+ "\n    {pn} #"
-				+ "\n\n   {pn} <new prefix> -g: change new prefix in system bot (only admin bot)"
-				+ "\n   Example:"
-				+ "\n    {pn} # -g"
-				+ "\n\n   {pn} reset: change prefix in your box chat to default"
-		}
-	},
+config: {
+name: "prefix",
+version: "1.7.0",
+author: "Azad",
+role: 0,
+shortDescription: "Animated stylish prefix info card",
+longDescription: "Replies with an animated style image showing prefix info, server time, user name and profile picture with glow, shadows, and abstract background patterns.",
+category: "utility"
+},
 
-	langs: {
-		vi: {
-			reset: "Đã reset prefix của bạn về mặc định: %1",
-			onlyAdmin: "Chỉ admin mới có thể thay đổi prefix hệ thống bot",
-			confirmGlobal: "Vui lòng thả cảm xúc bất kỳ vào tin nhắn này để xác nhận thay đổi prefix của toàn bộ hệ thống bot",
-			confirmThisThread: "Vui lòng thả cảm xúc bất kỳ vào tin nhắn này để xác nhận thay đổi prefix trong nhóm chat của bạn",
-			successGlobal: "Đã thay đổi prefix hệ thống bot thành: %1",
-			successThisThread: "Đã thay đổi prefix trong nhóm chat của bạn thành: %1",
-			myPrefix: "🌐 Prefix của hệ thống: %1\n🛸 Prefix của nhóm bạn: %2"
-		},
-		en: {
-			reset: "Your prefix has been reset to default: %1",
-			onlyAdmin: "Only admin can change prefix of system bot",
-			confirmGlobal: "Please react to this message to confirm change prefix of system bot",
-			confirmThisThread: "Please react to this message to confirm change prefix in your box chat",
-			successGlobal: "Changed prefix of system bot to: %1",
-			successThisThread: "Changed prefix in your box chat to: %1",
-			myPrefix: "🌐 System prefix: %1\n🛸 Your box chat prefix: %2"
-		}
-	},
+onStart: async function () {},
 
-	onStart: async function ({ message, role, args, commandName, event, threadsData, getLang }) {
-		if (!args[0])
-			return message.SyntaxError();
+onChat: async function ({ api, event, message, threadsData, usersData }) {
+const fs = require("fs");
+const path = require("path");
+const { createCanvas, loadImage } = require("canvas");
+const axios = require("axios");
 
-		if (args[0] == 'reset') {
-			await threadsData.set(event.threadID, null, "data.prefix");
-			return message.reply(getLang("reset", global.GoatBot.config.prefix));
-		}
+if (!event.body || event.body.toLowerCase().trim() !== "prefix") return;  
 
-		const newPrefix = args[0];
-		const formSet = {
-			commandName,
-			author: event.senderID,
-			newPrefix
-		};
+try {  
+  const threadID = event.threadID;  
+  const senderID = event.senderID;  
 
-		if (args[1] === "-g")
-			if (role < 2)
-				return message.reply(getLang("onlyAdmin"));
-			else
-				formSet.setGlobal = true;
-		else
-			formSet.setGlobal = false;
+  // --- Get prefixes ---  
+  const systemPrefix = (global.GoatBot?.config?.prefix) || "/";  
+  let groupPrefix = systemPrefix;  
+  try {  
+    const tdata = await threadsData.get(threadID);  
+    if (tdata?.data?.prefix) groupPrefix = tdata.data.prefix;  
+  } catch (_) {}  
 
-		return message.reply(args[1] === "-g" ? getLang("confirmGlobal") : getLang("confirmThisThread"), (err, info) => {
-			formSet.messageID = info.messageID;
-			global.GoatBot.onReaction.set(info.messageID, formSet);
-		});
-	},
+  // --- Get user info ---  
+  const userInfo = await api.getUserInfo(senderID);  
+  const userName = userInfo[senderID]?.name || "Unknown User";  
 
-	onReaction: async function ({ message, threadsData, event, Reaction, getLang }) {
-		const { author, newPrefix, setGlobal } = Reaction;
-		if (event.userID !== author)
-			return;
-		if (setGlobal) {
-			global.GoatBot.config.prefix = newPrefix;
-			fs.writeFileSync(global.client.dirConfig, JSON.stringify(global.GoatBot.config, null, 2));
-			return message.reply(getLang("successGlobal", newPrefix));
-		}
-		else {
-			await threadsData.set(event.threadID, newPrefix, "data.prefix");
-			return message.reply(getLang("successThisThread", newPrefix));
-		}
-	},
+  // --- Get avatar ---  
+  let avatar;  
+  try {  
+    const avatarUrl = await usersData.getAvatarUrl(senderID);  
+    const avatarRes = await axios.get(avatarUrl, { responseType: "arraybuffer" });  
+    avatar = await loadImage(Buffer.from(avatarRes.data, "binary"));  
+  } catch (err) {  
+    const fallbackURL = "https://i.imgur.com/0eg0aG3.png";  
+    const fbRes = await axios.get(fallbackURL, { responseType: "arraybuffer" });  
+    avatar = await loadImage(Buffer.from(fbRes.data, "binary"));  
+  }  
 
-	onChat: async function ({ event, message, getLang }) {
-		if (event.body && event.body.toLowerCase() === "prefix")
-			return () => {
-				return message.reply(getLang("myPrefix", global.GoatBot.config.prefix, utils.getPrefix(event.threadID)));
-			};
-	}
+  // --- Server Time ---  
+  const serverTime = new Date().toLocaleString("en-GB", { timeZone: "Asia/Dhaka", hour12: false });  
+
+  // --- Canvas ---  
+  const W = 1200, H = 700;  
+  const canvas = createCanvas(W, H);  
+  const ctx = canvas.getContext("2d");  
+
+  // Background gradient  
+  const bg = ctx.createLinearGradient(0, 0, W, H);  
+  bg.addColorStop(0, "#0f172a");  
+  bg.addColorStop(1, "#1e293b");  
+  ctx.fillStyle = bg;  
+  ctx.fillRect(0, 0, W, H);  
+
+  // Abstract wave pattern  
+  drawAbstractPattern(ctx, W, H);  
+
+  // Rounded card  
+  const pad = 40;  
+  const cardW = W - pad * 2;  
+  const cardH = H - pad * 2;  
+  const radius = 40;  
+  ctx.shadowColor = "rgba(0,0,0,0.35)";  
+  ctx.shadowBlur = 25;  
+  ctx.shadowOffsetX = 0;  
+  ctx.shadowOffsetY = 10;  
+  ctx.fillStyle = "rgba(255,255,255,0.08)";  
+  roundedRect(ctx, pad, pad, cardW, cardH, radius);  
+  ctx.fill();  
+  ctx.shadowBlur = 0;  
+
+  // Title  
+  const titleGradient = ctx.createLinearGradient(W/2 - 250, 0, W/2 + 250, 0);  
+  titleGradient.addColorStop(0, "#facc15");  
+  titleGradient.addColorStop(1, "#38bdf8");  
+  ctx.fillStyle = titleGradient;  
+  ctx.font = "bold 75px sans-serif";  
+  ctx.textAlign = "center";  
+  ctx.shadowColor = "rgba(0,0,0,0.4)";  
+  ctx.shadowBlur = 8;  
+  ctx.fillText("Bot Prefix Info", W / 2, 100);  
+  ctx.shadowBlur = 0;  
+
+  // Info Text  
+  ctx.font = "bold 48px sans-serif";  
+  ctx.textAlign = "center";  
+  ctx.shadowColor = "rgba(0,0,0,0.25)";  
+  ctx.shadowBlur = 5;  
+
+  ctx.fillStyle = "#38bdf8";  
+  ctx.fillText(`System Prefix : ${systemPrefix}`, W / 2, 200);  
+
+  ctx.fillStyle = "#22c55e";  
+  ctx.fillText(`Your Group Prefix : ${groupPrefix}`, W / 2, 270);  
+
+  ctx.fillStyle = "#f87171";  
+  ctx.fillText(`Server Time : ${serverTime}`, W / 2, 340);  
+  ctx.shadowBlur = 0;  
+
+  ctx.font = "bold 55px sans-serif";  
+  ctx.fillStyle = "#fff";  
+  ctx.fillText(`User : ${userName}`, W / 2, 420);  
+
+  // Profile picture with glow and border  
+  const size = 160;  
+  const x = W / 2 - size / 2;  
+  const y = 450;  
+
+  ctx.save();  
+  ctx.shadowColor = "#38bdf8";  
+  ctx.shadowBlur = 35;  
+  ctx.shadowOffsetX = 0;  
+  ctx.shadowOffsetY = 0;  
+  ctx.beginPath();  
+  ctx.arc(W / 2, y + size / 2, size / 2, 0, Math.PI * 2);  
+  ctx.closePath();  
+  ctx.fillStyle = "#00000000";  
+  ctx.fill();  
+  ctx.restore();  
+
+  ctx.save();  
+  ctx.beginPath();  
+  ctx.arc(W / 2, y + size / 2, size / 2, 0, Math.PI * 2);  
+  ctx.closePath();  
+  ctx.clip();  
+  ctx.drawImage(avatar, x, y, size, size);  
+  ctx.restore();  
+
+  ctx.beginPath();  
+  ctx.arc(W / 2, y + size / 2, size / 2 + 4, 0, Math.PI * 2);  
+  ctx.strokeStyle = "#38bdf8";  
+  ctx.lineWidth = 4;  
+  ctx.stroke();  
+
+  // --- Save and send ---  
+  const cacheDir = path.join(__dirname, "../cache");  
+  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });  
+  const outPath = path.join(cacheDir, `prefix_${Date.now()}.png`);  
+  fs.writeFileSync(outPath, canvas.toBuffer("image/png"));  
+
+  await message.reply({  
+    body: `✨ Azad chat bot Prefix Info ✅`,  
+    attachment: fs.createReadStream(outPath)  
+  });  
+
+  setTimeout(() => fs.existsSync(outPath) && fs.unlinkSync(outPath), 60000);  
+
+} catch (err) {  
+  console.error(err);  
+  return message.reply("দুঃখিত, ছবি বানাতে সমস্যা হয়েছে: " + err.message);  
+}  
+
+// Helper functions  
+function roundedRect(ctx, x, y, w, h, r) {  
+  ctx.beginPath();  
+  ctx.moveTo(x + r, y);  
+  ctx.arcTo(x + w, y, x + w, y + h, r);  
+  ctx.arcTo(x + w, y + h, x, y + h, r);  
+  ctx.arcTo(x, y + h, x, y, r);  
+  ctx.arcTo(x, y, x + w, y, r);  
+  ctx.closePath();  
+}  
+
+function drawAbstractPattern(ctx, W, H) {  
+  for (let i = 0; i < 6; i++) {  
+    const gradient = ctx.createRadialGradient(  
+      Math.random() * W, Math.random() * H, 50,  
+      Math.random() * W, Math.random() * H, 300  
+    );  
+    gradient.addColorStop(0, `rgba(${Math.floor(Math.random()*255)},${Math.floor(Math.random()*255)},${Math.floor(Math.random()*255)},0.05)`);  
+    gradient.addColorStop(1, "rgba(0,0,0,0)");  
+    ctx.fillStyle = gradient;  
+    ctx.fillRect(0, 0, W, H);  
+  }  
+}
+
+}
 };
