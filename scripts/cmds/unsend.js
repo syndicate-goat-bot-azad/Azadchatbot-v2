@@ -1,9 +1,10 @@
 module.exports = {
 	config: {
 		name: "unsend",
+		aliases:["u", "uns"],
 		version: "1.2",
 		author: "NTKhang",
-		countDown: 5,
+		countDown: 1,
 		role: 0,
 		description: {
 			vi: "Gỡ tin nhắn của bot",
